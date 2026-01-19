@@ -1,2 +1,4 @@
 .ipynb_checkpoints/
 *.docx
+__pycache__/
+*.egg-info/
