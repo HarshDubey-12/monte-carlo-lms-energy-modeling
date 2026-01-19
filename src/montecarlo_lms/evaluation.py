@@ -54,7 +54,7 @@ def evaluate_uncertainty(model, X_batch, y_batch, noise_scales, n_mc=500):
 
     return y_mc_pred, y_det_pred, y_mc_mean, y_mc_std, y_mc_lower, y_mc_upper
 
-def plot_prediction_distribution(y_mc_pred, y_det_pred, y_mc_mean, idx=0):
+def plot_prediction_distribution(y_mc_pred, y_det_pred, y_mc_mean, idx=0, show=True):
     """
     Plot the prediction distribution for a single sample.
     """
@@ -65,9 +65,10 @@ def plot_prediction_distribution(y_mc_pred, y_det_pred, y_mc_mean, idx=0):
     plt.xlabel("Predicted log energy")
     plt.ylabel("Frequency")
     plt.legend()
-    plt.show()
+    if show:
+        plt.show()
 
-def plot_prediction_bands(y_det_pred, y_mc_mean, y_mc_lower, y_mc_upper, n_points):
+def plot_prediction_bands(y_det_pred, y_mc_mean, y_mc_lower, y_mc_upper, n_points, show=True):
     """
     Plot prediction bands across multiple points.
     """
@@ -85,7 +86,8 @@ def plot_prediction_bands(y_det_pred, y_mc_mean, y_mc_lower, y_mc_upper, n_point
     plt.ylabel("Predicted log energy")
     plt.title("Monte Carlo Uncertainty in LMS Predictions")
     plt.legend()
-    plt.show()
+    if show:
+        plt.show()
 
 def compute_coefficient_of_variation(y_mc_std, y_mc_mean):
     """
