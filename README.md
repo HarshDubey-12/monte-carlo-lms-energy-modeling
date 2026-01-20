@@ -133,10 +133,164 @@ monte-carlo-lms-energy-modeling/
 └── setup.py
 ```
 
-## Contributing
+## API Documentation
 
-Contributions are welcome. Please open an issue or submit a pull request.
+This section provides detailed documentation for each module in the `montecarlo_lms` package.
 
-## License
+### `data_loader` Module
 
-This project is licensed under the MIT License.
+#### `load_data(data_dir)`
+Loads the training, building metadata, and weather datasets from CSV files.
+
+**Parameters:**
+- `data_dir` (str): Path to the directory containing the CSV files (`train.csv`, `building_metadata.csv`, `weather_train.csv`).
+
+**Returns:**
+- `train_df` (pd.DataFrame): Training data with columns like `building_id`, `meter`, `timestamp`, `meter_reading`.
+- `building_df` (pd.DataFrame): Building metadata with columns like `building_id`, `site_id`, `square_feet`, `year_built`, `primary_use`.
+- `weather_df` (pd.DataFrame): Weather data with columns like `site_id`, `timestamp`, `air_temperature`, `dew_temperature`, `wind_speed`.
+
+### `preprocessing` Module
+
+#### `preprocess_data(train_df, building_df, weather_df, selected_site_id=None)`
+Preprocesses the data by selecting a site, merging datasets, handling missing values, feature engineering, and splitting into train/validation sets.
+
+**Parameters:**
+- `train_df` (pd.DataFrame): Raw training data.
+- `building_df` (pd.DataFrame): Raw building metadata.
+- `weather_df` (pd.DataFrame): Raw weather data.
+- `selected_site_id` (int, optional): Pre-selected site ID. If None, selects automatically based on data coverage.
+
+**Returns:**
+- `X_train_norm` (np.ndarray): Normalized training features (n_samples, n_features).
+- `y_train` (np.ndarray): Training targets (log-transformed meter readings).
+- `X_val_norm` (np.ndarray): Normalized validation features.
+- `y_val` (np.ndarray): Validation targets.
+- `FEATURES` (list): List of feature names (e.g., ['air_temperature', 'dew_temperature', 'wind_speed', 'hour', 'dayofweek', 'log_square_feet']).
+- `TARGET` (str): Target name ('log_meter_reading').
+- `X_mean` (np.ndarray): Mean values for feature normalization.
+- `X_std` (np.ndarray): Standard deviation values for feature normalization.
+- `site_id` (int): Selected site ID.
+
+**Key Variables:**
+- `MIN_TRAIN_RECORDS`, `MIN_WEATHER_RECORDS`: Thresholds for site selection based on data availability.
+- `site_summary_filtered`: Filtered sites meeting coverage criteria.
+- `balanced_score`: Metric for site selection (lower is better balance between train and weather records).
+- `data_df`: Merged and cleaned DataFrame.
+- `FEATURES`: Engineered features including time-based (hour, dayofweek) and transformed (log_square_feet).
+- `X_train_norm`, `X_val_norm`: Z-score normalized features using training set statistics.
+
+### `monte_carlo` Module
+
+#### `monte_carlo_perturb(x, noise_scales, n_mc=100)`
+Generates Monte Carlo perturbed versions of input features by adding noise to specified dimensions.
+
+**Parameters:**
+- `x` (np.ndarray): Normalized input features (n_points, n_features).
+- `noise_scales` (dict): Mapping of feature_index (int) to noise standard deviation (float).
+- `n_mc` (int): Number of Monte Carlo samples (default: 100).
+
+**Returns:**
+- `X_mc` (np.ndarray): Perturbed features (n_mc, n_points, n_features).
+
+**Key Variables:**
+- `n_points`, `n_features`: Dimensions of input data.
+- `X_mc`: Array to store perturbed samples.
+- `noise`: Random noise drawn from normal distribution for each feature and sample.
+
+### `model` Module
+
+#### Class `LMSRegressor`
+Implements Least Mean Squares (LMS) regression using stochastic gradient descent.
+
+**Attributes:**
+- `lr` (float): Learning rate.
+- `w` (np.ndarray): Weight vector (n_features,).
+- `b` (float): Bias term.
+- `loss_history` (list): List of epoch losses for diagnostics.
+
+**Methods:**
+
+##### `__init__(self, n_features, learning_rate=0.01)`
+Initializes the model.
+
+**Parameters:**
+- `n_features` (int): Number of input features.
+- `learning_rate` (float): Step size for updates (default: 0.01).
+
+##### `predict(self, X)`
+Predicts outputs for given inputs.
+
+**Parameters:**
+- `X` (np.ndarray): Input features (n_samples, n_features).
+
+**Returns:**
+- `predictions` (np.ndarray): Predicted values (n_samples,).
+
+##### `update(self, x, y)`
+Performs one LMS update on a single sample.
+
+**Parameters:**
+- `x` (np.ndarray): Single input sample (n_features,).
+- `y` (float): True target value.
+
+**Returns:**
+- `error` (float): Prediction error.
+
+##### `fit(self, X, y, n_epochs, shuffle=True)`
+Trains the model for multiple epochs.
+
+**Parameters:**
+- `X` (np.ndarray): Training features (n_samples, n_features).
+- `y` (np.ndarray): Training targets (n_samples,).
+- `n_epochs` (int): Number of training epochs.
+- `shuffle` (bool): Whether to shuffle data each epoch (default: True).
+
+### `evaluation` Module
+
+#### `evaluate_uncertainty(model, X_batch, y_batch, noise_scales, n_mc=500)`
+Evaluates prediction uncertainty using Monte Carlo simulations.
+
+**Parameters:**
+- `model` (LMSRegressor): Trained model.
+- `X_batch` (np.ndarray): Batch of input features.
+- `y_batch` (np.ndarray): Batch of true targets.
+- `noise_scales` (dict): Noise scales for perturbation.
+- `n_mc` (int): Number of Monte Carlo samples (default: 500).
+
+**Returns:**
+- `y_mc_pred` (np.ndarray): Monte Carlo predictions (n_mc, n_points).
+- `y_det_pred` (np.ndarray): Deterministic predictions.
+- `y_mc_mean` (np.ndarray): Mean of MC predictions.
+- `y_mc_std` (np.ndarray): Std of MC predictions.
+- `y_mc_lower` (np.ndarray): 2.5% percentile (lower CI).
+- `y_mc_upper` (np.ndarray): 97.5% percentile (upper CI).
+
+**Key Variables:**
+- `N_points`: Number of samples in batch.
+- `cv`: Coefficient of variation (y_mc_std / |y_mc_mean|), measures relative uncertainty.
+
+#### `plot_prediction_distribution(y_mc_pred, y_det_pred, y_mc_mean, idx=0, show=True)`
+Plots the prediction distribution histogram for a single sample.
+
+**Parameters:**
+- `y_mc_pred`, `y_det_pred`, `y_mc_mean`: Prediction arrays.
+- `idx` (int): Sample index (default: 0).
+- `show` (bool): Whether to display the plot (default: True).
+
+#### `plot_prediction_bands(y_det_pred, y_mc_mean, y_mc_lower, y_mc_upper, n_points, show=True)`
+Plots prediction bands with confidence intervals.
+
+**Parameters:**
+- `y_det_pred`, `y_mc_mean`, `y_mc_lower`, `y_mc_upper`: Prediction arrays.
+- `n_points` (int): Number of points.
+- `show` (bool): Whether to display the plot (default: True).
+
+#### `compute_coefficient_of_variation(y_mc_std, y_mc_mean)`
+Computes and prints coefficient of variation statistics.
+
+**Parameters:**
+- `y_mc_std`, `y_mc_mean` (np.ndarray): Std and mean predictions.
+
+**Returns:**
+- `cv` (np.ndarray): Coefficient of variation values.
